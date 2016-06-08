@@ -105,12 +105,9 @@ html, body {
   z-index: 999;
 }
 
-.mdl-demo .mdl-layout__content section:not(:last-of-type) {
-  position: relative;
-  margin-bottom: 48px;
-}
 .mdl-demo section.section--center {
   max-width: 860px;
+  margin-bottom: 48px;
 }
 .mdl-demo #features section.section--center {
   max-width: 620px;

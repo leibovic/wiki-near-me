@@ -72,5 +72,114 @@
     });
   }
 
-  // Your custom JavaScript goes here
+  function formatQueryUrl(params) {
+    var str = [];
+    for (var p in params) {
+      str.push(encodeURIComponent(p) + '=' + encodeURIComponent(params[p]));
+    }
+    return 'https://en.wikipedia.org/w/api.php?' + str.join('&');
+  }
+
+  function fetchJsonp(url) {
+    return new Promise(function(resolve, reject) {
+      var timeoutId;
+
+      window.callback = function(response) {
+        resolve(response);
+
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        delete window.callback;
+        document.body.removeChild(document.getElementById('jsonpScript'));
+      };
+
+      var jsonpScript = document.createElement('script');
+      jsonpScript.setAttribute('src', url);
+      jsonpScript.id = 'jsonpScript';
+      document.body.appendChild(jsonpScript);
+
+      timeoutId = setTimeout(function() {
+        reject(new Error('JSONP request timed out'));
+        delete window.callback;
+        document.body.removeChild(document.getElementById('jsonpScript'));
+      }, 5000);
+    });
+  }
+
+  // Logic from http://www.movable-type.co.uk/scripts/latlong.html
+  function formatDistance(p1, p2) {
+    const EARTH_RADIUS = 6371 * 1000;
+
+    function toRadians(n) {
+      return n * Math.PI / 180;
+    }
+
+    var lat1 = toRadians(p1.lat);
+    var lat2 = toRadians(p2.lat);
+    var dlat = toRadians(p2.lat - p1.lat);
+    var dlon = toRadians(p2.lon - p1.lon);
+
+    var a = Math.sin(dlat/2) * Math.sin(dlat/2) +
+            Math.cos(lat1) * Math.cos(lat2) *
+            Math.sin(dlon/2) * Math.sin(dlon/2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    // Round to the nearest meter
+    var d = Math.round(EARTH_RADIUS * c);
+    return d + ' m';
+  }
+
+  const DEFAULT_IMAGE = 'https://bits.wikimedia.org/apple-touch/wikipedia.png';
+
+  function getNearbyItems() {
+    window.navigator.geolocation.getCurrentPosition(function(location){
+      var userPoint = {
+        lat: location.coords.latitude,
+        lon: location.coords.longitude
+      };
+
+      var params = {
+        action: 'query',
+        format: 'json',
+        colimit: 'max',
+        prop: 'pageimages|coordinates',
+        pithumbsize: 180,
+        pilimit: 50,
+        generator: 'geosearch',
+        ggsradius: 10000,
+        ggsnamespace: 0,
+        ggslimit: 50,
+        ggscoord: userPoint.lat + '|' + userPoint.lon,
+        callback: 'callback' /* Used for JSONP response */
+      };
+
+      var queryUrl = formatQueryUrl(params);
+      fetchJsonp(queryUrl).then(function(response) {
+        var pages = response.query.pages;
+        for (var p in pages) {
+          var page = pages[p];
+          var url = 'https://en.wikipedia.org/wiki/' + encodeURIComponent(page.title);
+          var title = page.title;
+          var imageUrl = page.thumbnail ? page.thumbnail.source : DEFAULT_IMAGE;
+          var distance = formatDistance(userPoint, page.coordinates[0]);
+
+          var t = document.getElementById('item');
+          t.content.querySelector('img').src = imageUrl;
+          t.content.querySelector('.title').textContent = title;
+          t.content.querySelector('.link').href = url;
+          //t.content.querySelector('.summary').textContent = distance;
+
+          var content = document.getElementById('content');
+          var clone = document.importNode(t.content, true);
+          content.appendChild(clone);
+        }
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    getNearbyItems();
+  });
+
 })();
